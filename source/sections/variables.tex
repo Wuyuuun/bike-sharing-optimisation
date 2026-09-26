@@ -1,0 +1,101 @@
+\subsection{模型假設}
+%%%%%%%%%%%%%%%%%%%%%%
+\begin{assumption}
+每個住宅區\(300\)米範圍內至少有一個共享單車站點。
+\end{assumption}
+\begin{explanation}
+為確保居民便利性，模型假設每個住宅區周邊\(300\)米內必須有一個站點，這是一個覆蓋需求的基本約束。
+\end{explanation}
+\begin{assumption}
+街道寬度限制了站點的最大投放量，不同區域的容量分別為樞紐區\(30\)輛、居民區\(15\)輛、旅遊區\(8\)輛。
+\end{assumption}
+\begin{explanation}
+模型根據澳門狹窄街道的特點，假設不同區域的站點容量受限，並為樞紐區、居民區和旅遊區分別設定了固定的最大投放量。
+\end{explanation}
+\begin{assumption}
+高峰時段可按\(30\)分鐘為單位拆分為多個時段，淨需求流量為還車數與借車數之差。
+\end{assumption}
+\begin{explanation}
+為便於數據收集和分析，模型假設高峰時段可被均勻劃分為\(30\)分鐘的子時段，並用還車數減去借車數來計算每個站點的淨需求流量。
+\end{explanation}
+\begin{assumption}
+初始庫存少於\(4\)輛的時段數據視為無效，排除右截尾偏差。
+\end{assumption}
+\begin{explanation}
+模型使用截尾需求估計方法，假設初始庫存少於\(4\)輛的時段數據受庫存枯竭影響，需通過示性函數排除，以確保需求估算的準確性。
+\end{explanation}
+\begin{assumption}
+總單車數量受財政預算約束，範圍為\(1000\)至\(1600\)輛。
+\end{assumption}
+\begin{explanation}
+模型假設共享單車系統的總車輛數受預算限制，基於氹仔的人口密度，建議取值在\(1000\)至\(1600\)輛之間。
+\end{explanation}
+\begin{assumption}
+最大站點數為\(50\)，以避免道路擁堵和確保用戶體驗。
+\end{assumption}
+\begin{explanation}
+基於氹仔的路網密度，模型假設站點總數不超過\(50\)個，以平衡道路空間佔用和用戶便利性。
+\end{explanation}
+\begin{assumption}
+全域最大服務缺口和總服務缺口可用加權混合目標函數優化，權重\(\lambda=0.8\)。
+\end{assumption}
+\begin{explanation}
+模型假設通過加權混合目標函數（\(0.8\times\)全域最大服務缺口+\(0.2\times\)總服務缺口）可有效優化服務缺口，強調避免極端情況（如「零樁可用」）的重要性。
+\end{explanation}
+\begin{assumption}
+運輸成本與站點間距離成正比，忽略其他因素如路況和油耗。
+\end{assumption}
+\begin{explanation}
+在再平衡模型中，假設運輸成本\(c_{ij}\)與站點間的道路距離\(d(e_{ij})\)成正比，簡化了成本計算，未考慮即時路況或油耗等複雜因素。
+\end{explanation}
+\begin{assumption}
+站點間的距離使用曼哈頓距離計算。
+\end{assumption}
+\begin{explanation}
+為降低計算複雜度，模型假設站點間距離採用曼哈頓距離（\(|x_1 - y_1| + |x_2 - y_2|\)），認為其能合理反映實際距離。
+\end{explanation}
+\begin{assumption}
+倉庫的共享單車數量充分多，不會被調度的卡車用盡。
+\end{assumption}
+\begin{explanation}
+在多輛卡車調度模型中，假設倉庫的單車庫存無限，卡車的初始庫存總和不受限制，簡化了庫存約束。
+\end{explanation}
+\begin{assumption}
+每輛卡車的行駛速度為每小時\(40\)公里，行駛時間與距離成正比。
+\end{assumption}
+\begin{explanation}
+模型假設卡車行駛時間\(t_{ij}\)與站點間距離成正比，比例係數\(k_t=0.00167\)分鐘/公里，相當於恆定速度\(40\)公里/小時。
+\end{explanation}
+\begin{assumption}
+裝卸時間與操作的單車數量絕對值成正比，係數為\(0.2\)分鐘/輛。
+\end{assumption}
+\begin{explanation}
+模型假設每個站點的裝卸時間\(u_i\)與操作的單車數量\(|y_i|\)成正比，比例係數\(k_u=0.2\)分鐘/輛，基於實際操作效率估算。
+\end{explanation}
+\begin{assumption}
+一輛卡車不可多次訪問同一站點。
+\end{assumption}
+\begin{explanation}
+再平衡模型假設每輛卡車對每個站點的訪問次數不超過一次，以簡化路線規劃和流量約束。
+\end{explanation}
+\begin{assumption}
+站點最大庫存為期望需求的\(150\%\)，以確保還車時有足夠餘量。
+\end{assumption}
+\begin{explanation}
+為避免還車時無樁可用，模型假設每個站點的最大庫存\(l_i\)為期望需求\(s_i^I\)的\(150\%\)，以提供足夠的緩衝空間。
+\end{explanation}
+
+\subsection{變量表}
+\begin{table}[H]
+    \begin{center}
+        \begin{tabular}{|cc||cc|}
+        \hline
+        變量 & 說明  & 變量 & 說明           \\ \hline
+        $T_i$   & 首次評分得分 &$\varphi$   & 緯度        \\
+        $S_i$   & 競技水平得分 &  $\lambda$   & 經度      \\
+        \hline
+        \end{tabular}
+    \end{center}
+    \caption{變量表}
+    \label{fig:variables}
+\end{table}

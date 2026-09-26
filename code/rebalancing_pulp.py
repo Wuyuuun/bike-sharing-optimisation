@@ -1,0 +1,365 @@
+import pulp
+import numpy as np
+import math
+import time
+
+# =============================
+# 參數設定 (基於提供的數據)
+# 站點座標
+coordinates = {
+    0: (25, -5),   # 車場
+    1: (1, 5),    2: (2, 7),     3: (4, 5),     4: (7, 5),
+    5: (9, 4),    6: (9, 7),     7: (11, 5),    8: (11, 7),
+    9: (11, 10),  10: (13, 4),   11: (13, 8),   12: (14, 10),
+    13: (16, 2),  14: (9, 2),    15: (18, 9),   16: (21, 9),
+    17: (23, 8),  18: (22, 4),   19: (18, 2),   20: (12, 1),
+    21: (14, 2)
+}
+
+# 站點類型
+site_types = {
+    1: "居住區", 2: "居住區", 3: "居住區", 4: "居住區", 5: "居住區",
+    6: "居住區", 7: "居住區", 8: "居住區", 9: "居住區", 10: "居住區",
+    11: "居住區", 12: "居住區", 13: "居住區", 14: "樞紐區", 15: "樞紐區",
+    16: "樞紐區", 17: "樞紐區", 18: "樞紐區", 19: "樞紐區", 20: "旅遊區",
+    21: "旅遊區"
+}
+
+# 期望庫存 sI
+sI = {
+    0: 0, 1: 5, 2: 12, 3: 8, 4: 12,
+    5: 15, 6: 10, 7: 15, 8: 13, 9: 10,
+    10: 15, 11: 8, 12: 10, 13: 10, 14: 25,
+    15: 14, 16: 18, 17: 17, 18: 25, 19: 30,
+    20: 8, 21: 5
+}
+
+# 初始庫存 s0
+s0 = {
+    0: 0, 1: 5, 2: 0, 3: 8, 4: 16,
+    5: 20, 6: 10, 7: 15, 8: 14, 9: 9,
+    10: 16, 11: 5, 12: 3, 13: 14, 14: 26,
+    15: 13, 16: 18, 17: 17, 18: 20, 19: 10,
+    20: 8, 21: 7
+}
+
+# 計算最大庫存 l = sI * 1.5 向上取整
+l = {i: math.ceil(sI[i] * 1.5) for i in range(22)}
+
+# 懲罰係數 p
+p_cost = {0: 0}
+for i in range(1, 22):
+    if site_types[i] == "居住區":
+        p_cost[i] = 1000
+    elif site_types[i] == "樞紐區":
+        p_cost[i] = 2000
+    else:  # 旅遊區
+        p_cost[i] = 3000
+
+# 卡車參數
+C = 40          # 卡車容量
+T_work = 120    # 最大工作時間 (分鐘)
+alpha = 0.2     # 裝卸時間係數 (分鐘/單車)
+
+# 計算曼哈頓距離
+def manhattan_distance(coord1, coord2):
+    return 150 * (abs(coord1[0] - coord2[0]) + abs(coord1[1] - coord2[1]))
+
+# 創建距離矩陣
+distances = {}
+for i in range(22):
+    for j in range(22):
+        if i == j:
+            distances[(i, j)] = 0
+        else:
+            distances[(i, j)] = manhattan_distance(coordinates[i], coordinates[j])
+
+# 時間矩陣 = 距離矩陣 * 0.00167
+times = {key: value * 0.00167 for key, value in distances.items()}
+
+# 大M常數
+M = 100000
+
+# 站點集合
+S0 = list(range(22))  # 所有站點，包括車場
+P = [i for i in range(1, 22) if s0[i] > sI[i]]  # 取貨站 (初始庫存 > 期望庫存)
+D = [i for i in range(1, 22) if s0[i] < sI[i]]  # 送貨站 (初始庫存 < 期望庫存)
+S = P + D  # 需要服務的站點
+
+# 列印參數概覽
+print("站點類型分布:")
+print(f"車場: 0")
+print(f"取貨站 ({len(P)}個): {P}")
+print(f"送貨站 ({len(D)}個): {D}")
+print(f"平衡站 ({22 - len(S) - 1}個): {set(range(1, 22)) - set(P) - set(D)}")
+
+print("\n關鍵參數示例:")
+print(f"站點4 (取貨站): 初始庫存={s0[4]}, 期望庫存={sI[4]}, 最大庫存={l[4]}, 懲罰係數={p_cost[4]}")
+print(f"站點2 (送貨站): 初始庫存={s0[2]}, 期望庫存={sI[2]}, 最大庫存={l[2]}, 懲罰係數={p_cost[2]}")
+print(f"站點19 (樞紐區送貨站): 初始庫存={s0[19]}, 期望庫存={sI[19]}, 最大庫存={l[19]}, 懲罰係數={p_cost[19]}")
+print(f"站點21 (旅遊區取貨站): 初始庫存={s0[21]}, 期望庫存={sI[21]}, 最大庫存={l[21]}, 懲罰係數={p_cost[21]}")
+
+print(f"\n卡車參數: 容量={C}, 最大工作時間={T_work}分鐘")
+print(f"裝卸時間係數: {alpha} 分鐘/單車")
+
+# =============================
+# 創建優化模型
+# =============================
+model = pulp.LpProblem("Bike_Sharing_Scheduling", pulp.LpMinimize)
+
+# =============================
+# 定義決策變數
+# =============================
+# 路徑變數 x_ij
+x = pulp.LpVariable.dicts("x", ((i, j) for i in S0 for j in S0 if i != j), 
+                          cat=pulp.LpBinary)
+
+# 站點操作量 y_i
+y = pulp.LpVariable.dicts("y", S0, lowBound=-C, upBound=C, cat=pulp.LpContinuous)
+
+# 卡車裝載量 (到達站點i時的裝載量)
+Q_arrive = pulp.LpVariable.dicts("Q_arrive", S0, lowBound=0, upBound=C, cat=pulp.LpContinuous)
+
+# 累計時間 (離開站點i時的時間)
+T_leave = pulp.LpVariable.dicts("T_leave", S0, lowBound=0, upBound=T_work, cat=pulp.LpContinuous)
+
+# 庫存偏差 delta_i = |s_i - sI_i|
+delta = pulp.LpVariable.dicts("delta", S0, lowBound=0, cat=pulp.LpContinuous)
+
+# 輔助變數: 站點是否被訪問
+visited = pulp.LpVariable.dicts("visited", S, cat=pulp.LpBinary)
+
+# =============================
+# 目標函數：運輸成本 + 懲罰成本
+# =============================
+# 運輸成本使用距離（而不是時間）計算
+transport_cost = pulp.lpSum(distances[(i, j)] * x[i, j] for i in S0 for j in S0 if i != j)
+penalty_cost = pulp.lpSum(p_cost[i] * delta[i] for i in S)
+model += transport_cost + penalty_cost
+
+# =============================
+# 約束條件
+# =============================
+# 1. 車場訪問約束 - 必須從車場出發並返回
+model += pulp.lpSum(x[0, j] for j in S) == 1  # 從車場出發
+model += pulp.lpSum(x[i, 0] for i in S) == 1  # 返回車場
+
+# 2. 站點訪問約束
+for i in S:
+    # 入度 = 出度
+    model += pulp.lpSum(x[i, j] for j in S0 if j != i) == pulp.lpSum(x[j, i] for j in S0 if j != i)
+    
+    # 訪問標記約束
+    model += visited[i] == pulp.lpSum(x[i, j] for j in S0 if j != i)
+
+# 3. 車場特殊約束
+model += y[0] == 0  # 車場無操作
+model += Q_arrive[0] == 0  # 車場到達時裝載量為0
+model += T_leave[0] == 0  # 車場離開時間為0
+
+# 4. 庫存操作約束
+for i in P:
+    # 取貨站: 0 ≤ y_i ≤ min(s0[i] - sI[i], C)
+    max_take = min(s0[i] - sI[i], C)
+    model += y[i] >= 0
+    model += y[i] <= max_take * visited[i]
+    
+for i in D:
+    # 送貨站: -min(sI[i] - s0[i], C) ≤ y_i ≤ 0
+    max_deliver = min(sI[i] - s0[i], C)
+    model += y[i] <= 0
+    model += y[i] >= -max_deliver * visited[i]
+
+# 5. 卡車裝載量約束
+for i in S0:
+    # 未訪問站點裝載量為0
+    if i in S:
+        model += Q_arrive[i] <= C * visited[i]
+    else:
+        model += Q_arrive[i] == 0
+    
+    # 離開裝載量 = 到達裝載量 + 操作量
+    model += Q_arrive[i] + y[i] <= C  # 容量上限
+    model += Q_arrive[i] + y[i] >= 0  # 非負
+    
+    # 裝載量連續性 (使用大M法)
+    for k in S0:
+        if k != i:
+            model += Q_arrive[i] >= (Q_arrive[k] + y[k]) - M * (1 - x[k, i])
+            model += Q_arrive[i] <= (Q_arrive[k] + y[k]) + M * (1 - x[k, i])
+
+# 6. 時間約束
+for i in S0:
+    # 操作時間 = alpha * |y_i|
+    # 線性化 |y_i|
+    abs_y = pulp.LpVariable(f"abs_y_{i}", lowBound=0, upBound=C, cat=pulp.LpContinuous)
+    model += abs_y >= y[i]
+    model += abs_y >= -y[i]
+    
+    # 時間連續性
+    for k in S0:
+        if k != i:
+            model += T_leave[i] >= T_leave[k] + times[(k, i)] + alpha * abs_y - M * (1 - x[k, i])
+    
+    # 返回車場時間約束
+    if i != 0:
+        model += T_leave[i] + times[(i, 0)] <= T_work + M * (1 - x[i, 0])
+
+# 7. 庫存偏差約束
+for i in S0:
+    # 最終庫存 = 初始庫存 - 操作量
+    # 偏差 = |最終庫存 - 期望庫存|
+    model += delta[i] >= (s0[i] - y[i]) - sI[i]
+    model += delta[i] >= sI[i] - (s0[i] - y[i])
+    
+    # 未訪問時偏差固定為|初始庫存 - 期望庫存|
+    if i in S:
+        model += delta[i] <= abs(s0[i] - sI[i]) + M * (1 - visited[i])
+        model += delta[i] >= abs(s0[i] - sI[i]) - M * visited[i]
+
+# =============================
+# 求解模型
+# =============================
+start_time = time.time()
+# 設定求解時間限制為300秒
+model.solve(pulp.PULP_CBC_CMD(msg=True, timeLimit=300, gapRel=0.1))
+solving_time = time.time() - start_time
+status = pulp.LpStatus[model.status]
+print(f"\n求解狀態: {status}")
+print(f"求解時間: {solving_time:.2f}秒")
+
+if status in ['Optimal', 'Feasible']:
+    total_cost = pulp.value(model.objective)
+    transport_cost_val = pulp.value(transport_cost)
+    penalty_cost_val = pulp.value(penalty_cost)
+    print(f"總成本: {total_cost:.2f}")
+    print(f"運輸成本: {transport_cost_val:.2f}")
+    print(f"懲罰成本: {penalty_cost_val:.2f}")
+    print(f"懲罰成本占比: {100*penalty_cost_val/total_cost:.1f}%")
+    
+    # 計算訪問站點數量
+    visited_count = sum(pulp.value(visited[i]) > 0.5 for i in S)
+    print(f"訪問站點數: {visited_count}/{len(S)}")
+else:
+    print("未找到可行解，請嘗試放寬約束或增加資源")
+    exit()
+
+# =============================
+# 結果解析與輸出
+# =============================
+def extract_route(x_vars, start=0):
+    """提取卡車行駛路徑"""
+    # 找到從車場出發的弧
+    from_depot = [j for j in S0 if j != start and pulp.value(x_vars[start, j]) > 0.5]
+    if not from_depot:
+        return [start]
+    
+    route = [start]
+    current = start
+    next_node = from_depot[0]
+    
+    while next_node != start:
+        route.append(next_node)
+        # 找到下一個節點
+        next_candidates = [j for j in S0 if j != next_node and pulp.value(x_vars[next_node, j]) > 0.5]
+        
+        if not next_candidates:
+            break
+            
+        current = next_node
+        next_node = next_candidates[0]
+    
+    # 返回車場
+    if pulp.value(x_vars[route[-1], start]) > 0.5:
+        route.append(start)
+    
+    return route
+
+truck_route = extract_route(x)
+print("\n卡車工作路線: " + " -> ".join(map(str, truck_route)))
+
+# 計算總距離和總時間
+total_distance = 0
+total_time = 0
+for i in range(len(truck_route)-1):
+    from_node = truck_route[i]
+    to_node = truck_route[i+1]
+    total_distance += distances[(from_node, to_node)]
+    
+    # 在出發節點操作（除了車場）
+    if from_node != 0:
+        op = pulp.value(y[from_node])
+        op_time = alpha * abs(op)
+        total_time += op_time
+    
+    # 添加行駛時間
+    travel_time = times[(from_node, to_node)]
+    total_time += travel_time
+
+print(f"總行駛距離: {total_distance:.2f} 米")
+print(f"預估總時間: {total_time:.2f} 分鐘 (最大允許: {T_work}分鐘)")
+
+# 輸出各站點操作詳情
+print("\n各站點操作詳情:")
+print("站點 | 類型   | 區域   | 操作量 | 初始庫存 | 最終庫存 | 期望庫存 | 庫存偏差 | 是否訪問 | 懲罰成本")
+for i in range(1, 22):
+    site_type = site_types[i]
+    area = "居住區" if i <= 13 else ("樞紐區" if i <= 19 else "旅遊區")
+    
+    if i in S:
+        is_visited = pulp.value(visited[i]) > 0.5
+        op = pulp.value(y[i]) if is_visited else 0
+    else:
+        is_visited = False
+        op = 0
+    
+    final_stock = s0[i] - op
+    stock_dev = abs(final_stock - sI[i])
+    penalty = p_cost[i] * stock_dev
+    visit_flag = "✓" if is_visited else "✗"
+    
+    print(f"{i:3d} | {site_type:5s} | {area:5s} | {op:6.1f} | {s0[i]:8d} | {final_stock:8.1f} | {sI[i]:8d} | {stock_dev:7.1f} | {visit_flag:^7s} | {penalty:9.1f}")
+
+# 輸出路徑詳情
+print("\n路徑詳情:")
+print("順序 | 從站點 | 到站點 |  距離(米) | 操作量 | 操作時間 | 累計時間(分)")
+cumulative_time = 0
+for idx in range(len(truck_route)-1):
+    from_node = truck_route[idx]
+    to_node = truck_route[idx+1]
+    dist = distances[(from_node, to_node)]
+    travel_time = times[(from_node, to_node)]
+    
+    # 在出發節點操作（除了車場）
+    if from_node != 0:
+        op = pulp.value(y[from_node])
+        op_time = alpha * abs(op)
+    else:
+        op = 0
+        op_time = 0
+    
+    cumulative_time += op_time + travel_time
+    
+    print(f"{idx+1:3d} | {from_node:5d} | {to_node:5d} | {dist:9.1f} | {op:6.1f} | {op_time:7.2f} | {cumulative_time:10.2f}")
+
+# 最終返回車場
+if truck_route[-1] == 0:
+    print(f"卡車成功返回車場，總時間: {cumulative_time:.2f}分鐘")
+else:
+    print(f"注意: 卡車未返回車場! 最後位置: {truck_route[-1]}")
+
+# 輸出未訪問站點
+unvisited = [i for i in S if pulp.value(visited[i]) < 0.5]
+if unvisited:
+    print("\n未訪問站點:")
+    total_penalty = 0
+    for i in unvisited:
+        site_type = site_types[i]
+        area = "居住區" if i <= 13 else ("樞紐區" if i <= 19 else "旅遊區")
+        stock_dev = abs(s0[i] - sI[i])
+        penalty = p_cost[i] * stock_dev
+        total_penalty += penalty
+        print(f"站點 {i:2d} ({site_type}, {area}): 初始庫存={s0[i]}, 期望庫存={sI[i]}, 偏差={stock_dev:.1f}, 懲罰成本={penalty:.1f}")
+    print(f"未訪問站點總懲罰成本: {total_penalty:.1f}")
+else:
+    print("\n所有需要服務的站點均被訪問")

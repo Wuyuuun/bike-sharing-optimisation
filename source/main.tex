@@ -1,0 +1,68 @@
+\documentclass[12pt]{myClass}
+%%%%%%%正文%%%%%%%%
+\title{關於共享單車的投放與調度的研究報告}
+\author{濠江中學附屬英才學校圖靈隊}
+\date{}
+\begin{document}
+\maketitle
+\begin{abstract}
+  \input{sections/abstract.tex}
+\end{abstract}
+\newpage
+\tableofcontents
+\newpage
+\section{問題背景}
+\input{sections/background.tex}
+\newpage
+
+\section{問題分析}
+\input{sections/analysis.tex}
+\newpage
+
+\section{模型假設與變量說明}
+\input{sections/variables.tex}
+\newpage
+
+\section{模型建立}
+\input{sections/model.tex}
+\newpage
+
+\section{靈敏度分析}
+\input{sections/sensitivity.tex}
+\newpage
+
+\section{模型優劣分析}
+\input{sections/strengthAndWeakness.tex}
+\newpage
+
+\section{總結}
+\input{sections/summary.tex}
+
+% \section{參考文獻}
+% \begin{enumerate}[ {[}1{]} ]
+%   \item FootballDatabase.com. (n.d.). FootballDatabase - Club rankings and statistics. FootballDatabase. https://footballdatabase.com/\#google\_vignette
+%   \item Miratrix, L. W., Sekhon, J. S., Theodoridis, A. G., \& Campos, L. F. (2018). Worth Weighting? How to think about and use weights in survey experiments. Political Analysis, 26(3), 275–291. https://doi.org/10.1017/pan.2018.1
+%   \item NBA Team standings \& Stats | NBA.com. (n.d.). NBA. https://www.nba.com/standings
+%   \item NBA.com Staff. (2024, September 24). All 30 NBA arenas by team. NBA. \\https://www.nba.com/news/all-30-nba-arenas-by-team
+%   \item Ritchie, C., \& Hepburn, D. (2025, January 11). Ranking the 25 best stadiums in world football (2025). GiveMeSport. https://www.givemesport.com/best-football-soccer-stadiums-ranked/
+%   \item Saaty, T. L., \& Vargas, L. G. (2012). Models, Methods, Concepts \& Applications of the Analytic Hierarchy Process. In International series in management science/operations research/International series in operations research \& management science. https://doi.org/10.1007/978-1-4614-3597-6
+%   \item Wang, Z. (2023). Research on the Strategy of Holding Olympic Games based on AHP and FCE. Highlights in Science Engineering and Technology, 49, 130–135. \\https://doi.org/10.54097/hset.v49i.8491
+% \end{enumerate}
+
+\newpage
+
+\begin{appendices}
+  \section{圖表}
+  \label{appendix:graph}
+  \input{sections/table.tex}
+
+\newpage
+  \section{代碼}
+  \subsection{共享單車投放及選址代碼}
+  \input{sections/code1.tex}
+  \subsection{共享單車再平衡代碼}
+  \input{sections/code2.tex}
+\end{appendices}
+
+
+\end{document}
